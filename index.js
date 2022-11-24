@@ -17,6 +17,12 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 async function run() {
     try {
         const database = client.db('cam-bazar');
+        // jwt
+        app.post('/jwt', (req, res) => {
+            const uid = req.body;
+            const token = jwt.sign({uid}, process.env.SECRET_KEY, {expiresIn: '1d'});
+            res.send({token});
+        })
         // categories collection api
         const categoryCollection = database.collection('categories');
         app.get('/categories', async (req, res) => {
