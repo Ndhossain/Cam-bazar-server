@@ -17,9 +17,20 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 async function run() {
     try {
         const database = client.db('cam-bazar');
+        // User Manage
+        const userCollection = database.collection('user');
+        app.post('/user', async (req, res) => {
+            const userData = req.body;
+            const result = await userCollection.insertOne(userData)
+            res.send(result);
+        })
         // jwt
-        app.post('/jwt', (req, res) => {
+        app.post('/jwt', async (req, res) => {
             const uid = req.body;
+            const isAvail = await userCollection.findOne(uid);
+            if (!isAvail) {
+                return res.status(403).send({message: 'Unauthorized Access'})
+            }
             const token = jwt.sign({uid}, process.env.SECRET_KEY, {expiresIn: '1d'});
             res.send({token});
         })
