@@ -35,13 +35,19 @@ async function run() {
         const userCollection = database.collection('user');
         app.post('/user', async (req, res) => {
             const userData = req.body;
+            const isAvailUser = await userCollection.findOne({uid: userData.uid});
+            if (isAvailUser) {
+                return res.send({acknowledged: true, insertedId: isAvailUser._id})
+            }
             const result = await userCollection.insertOne(userData)
             res.send(result);
         })
         app.get('/users', verfyJwt, async (req, res) => {
             const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
             const result = await userCollection.findOne(query);
-            console.log({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller'});
             res.send({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller'})
         })
         // jwt
@@ -51,7 +57,7 @@ async function run() {
             if (!isAvail) {
                 return res.status(403).send({message: 'Unauthorized Access'})
             }
-            const token = jwt.sign({uid}, process.env.SECRET_KEY, {expiresIn: '1d'});
+            const token = jwt.sign(uid, process.env.SECRET_KEY, {expiresIn: '1d'});
             res.send({token});
         })
         // categories collection api
