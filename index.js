@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt =require('jsonwebtoken');
 require('dotenv').config();
 
@@ -33,6 +33,28 @@ async function run() {
         const database = client.db('cam-bazar');
         // User Manage
         const userCollection = database.collection('user');
+        // admin middleware
+        const verifyAdmin = async (req, res, next) => {
+            const decodedUid = req.decoded.uid;
+            const query = { uid: decodedUid };
+            const user = await userCollection.findOne(query);
+
+            if (user?.role !== 'admin') {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
+        }
+        // seller middleware
+        const verifySeller = async (req, res, next) => {
+            const decodedUid = req.decoded.uid;
+            const query = { uid: decodedUid };
+            const user = await userCollection.findOne(query);
+
+            if (user?.role === 'buyer') {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
+        }
         app.post('/user', async (req, res) => {
             const userData = req.body;
             const isAvailUser = await userCollection.findOne({uid: userData.uid});
@@ -42,13 +64,22 @@ async function run() {
             const result = await userCollection.insertOne(userData)
             res.send(result);
         })
-        app.get('/users', verfyJwt, async (req, res) => {
+        app.get('/user/role/:id', verfyJwt, async (req, res) => {
+            const uid = req.params.id;
+            if(req.decoded.uid !== uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const result = await userCollection.findOne({uid});
+            res.send({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller'})
+        })
+        app.get('/user/:role', verfyJwt, verifyAdmin, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             }
-            const result = await userCollection.findOne(query);
-            res.send({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller'})
+            const role = req.params.role;
+            const cursor = await userCollection.find({role}).toArray();
+            res.send(cursor)
         })
         // jwt
         app.post('/jwt', async (req, res) => {
@@ -66,6 +97,34 @@ async function run() {
             const query = {};
             const cursor = await categoryCollection.find(query).toArray();
             res.send(cursor);
+        })
+        // product collection api
+        const productsCollection = database.collection('products')
+        app.post('/products', verfyJwt, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const productInfo = req.body;
+            const result = await productsCollection.insertOne(productInfo);
+            res.send(result);
+        })
+        app.get('/products', verfyJwt, verifySeller, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const cursor = await productsCollection.find(query).toArray();
+            res.send(cursor);
+        })
+        app.delete('/products/:id', verfyJwt, verifySeller, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const id = req.params.id;
+            const result = await productsCollection.deleteOne({_id: ObjectId(id)})
+            res.send(result);
         })
     } finally {}
 }
