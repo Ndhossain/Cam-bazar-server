@@ -1,20 +1,27 @@
 [
+    
     {
-        "name": "All Products"
+        "name": "DSLR Camera",
+        "img": "https://i.ibb.co/gy8c1YV/dslr.png"
     },
     {
-        "name": "DSLR Camera"
+        "name": "Digital Camera",
+        "img": "https://i.ibb.co/7RMXFj4/photo-camera.png"
     },
     {
-        "name": "Digital Camera"
+        "name": "Web Cam",
+        "img": "https://i.ibb.co/sQTpWvb/webcam.png"
     },
     {
-        "name": "Web Cam"
+        "name": "Camera Lens",
+        "img": "https://i.ibb.co/2dpPDw0/camera-lens.png"
     },
     {
-        "name": "Camera Lens"
+        "name": "Camera Kit",
+        "img": "https://i.ibb.co/FXMwCvp/tripod.png"
     },
     {
-        "name": "Camera Kit"
+        "name": "CC Camera",
+        "img": "https://i.ibb.co/kMXgTVv/cctv.png"
     }
 ]

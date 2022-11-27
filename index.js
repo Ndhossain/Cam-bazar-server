@@ -10,7 +10,7 @@ const Port = process.env.PORT || 5000;
 // middle wares
 app.use(cors());
 app.use(express.json());
-const verfyJwt = (req, res, next) => {
+const verifyJwt = (req, res, next) => {
     const bearerToken = req.headers?.authorization;
     if (!bearerToken) {
         return res.status(401).send({message: 'Forbidden Access'});
@@ -64,7 +64,7 @@ async function run() {
             const result = await userCollection.insertOne(userData)
             res.send(result);
         })
-        app.get('/user/role/:id', verfyJwt, async (req, res) => {
+        app.get('/user/role/:id', verifyJwt, async (req, res) => {
             const uid = req.params.id;
             if(req.decoded.uid !== uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
@@ -72,7 +72,7 @@ async function run() {
             const result = await userCollection.findOne({uid});
             res.send({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller'})
         })
-        app.get('/user/:role', verfyJwt, verifyAdmin, async (req, res) => {
+        app.get('/user/:role', verifyJwt, verifyAdmin, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
@@ -80,6 +80,15 @@ async function run() {
             const role = req.params.role;
             const cursor = await userCollection.find({role}).toArray();
             res.send(cursor)
+        })
+        app.delete('/user/:id', verifyJwt, verifyAdmin, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const uid = req.params.id;
+            const result = await userCollection.deleteOne({uid});
+            res.send(result);
         })
         // jwt
         app.post('/jwt', async (req, res) => {
@@ -100,7 +109,7 @@ async function run() {
         })
         // product collection api
         const productsCollection = database.collection('products')
-        app.post('/products', verfyJwt, async (req, res) => {
+        app.post('/products', verifyJwt, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
@@ -109,7 +118,7 @@ async function run() {
             const result = await productsCollection.insertOne(productInfo);
             res.send(result);
         })
-        app.get('/products', verfyJwt, verifySeller, async (req, res) => {
+        app.get('/products', verifyJwt, verifySeller, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
@@ -117,13 +126,31 @@ async function run() {
             const cursor = await productsCollection.find(query).toArray();
             res.send(cursor);
         })
-        app.delete('/products/:id', verfyJwt, verifySeller, async (req, res) => {
+        app.delete('/products/:id', verifyJwt, verifySeller, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             }
             const id = req.params.id;
             const result = await productsCollection.deleteOne({_id: ObjectId(id)})
+            res.send(result);
+        })
+        app.put('/products/:id', verifyJwt, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const data = req.body;
+            console.log(data);
+            const id = req.params.id;
+            const filter = {_id: ObjectId(id)};
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    ...data
+                },
+            };
+            const result = await productsCollection.updateOne(filter, updateDoc, options);
             res.send(result);
         })
     } finally {}
