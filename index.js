@@ -159,6 +159,14 @@ async function run() {
         })
         // Bookings
         const bookingsCollection = database.collection('bookings');
+        app.get('/buyer-bookings/:uid', verifyJwt, async (req, res) => {
+            const query = req.params.uid;
+            if(req.decoded.uid !== query) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            };
+            const cursor = await bookingsCollection.find({ buyerUid: query }).toArray();
+            res.send(cursor);
+        })
         app.post('/bookings', verifyJwt, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
