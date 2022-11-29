@@ -125,6 +125,14 @@ async function run() {
             const cursor = await productsCollection.find(query, {"sort" : [['date', -1]]}).toArray();
             res.send(cursor);
         });
+        app.get('/products/:uid', verifyJwt, verifySeller, async(req, res) => {
+            const query = { uid: req.params.uid };
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const cursor = await productsCollection.find(query, {"sort" : [['date', -1]]}).toArray();
+            res.send(cursor);
+        })
         app.delete('/products/:id', verifyJwt, verifySeller, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
@@ -164,7 +172,15 @@ async function run() {
             if(req.decoded.uid !== query) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             };
-            const cursor = await bookingsCollection.find({ buyerUid: query }).toArray();
+            const cursor = await bookingsCollection.find({ buyerUid: query }, {"sort" : [['date', -1]]}).toArray();
+            res.send(cursor);
+        })
+        app.get('/seller-bookings/:uid', verifyJwt, verifySeller, async (req, res) => {
+            const query = req.params.uid;
+            if(req.decoded.uid !== query) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            };
+            const cursor = await bookingsCollection.find({ sellerUid: query }, {"sort" : [['date', -1]]}).toArray();
             res.send(cursor);
         })
         app.post('/bookings', verifyJwt, async (req, res) => {
@@ -179,7 +195,6 @@ async function run() {
         })
         app.delete('/bookings/:id/:uid', verifyJwt, async (req, res) => {
             const uid = req.params.uid;
-            console.log(req.decoded.uid, uid)
             if(req.decoded.uid !== uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             }
@@ -191,6 +206,35 @@ async function run() {
             const bookingQuery = {productId: req.params.id, buyerUid: req.params.uid};
             const isBooked = await bookingsCollection.findOne(bookingQuery);
             res.send({isBooked: isBooked ? true : false})
+        })
+        app.put('/booking/:id/:uid', verifyJwt, verifySeller, async (req, res) => {
+            const { uid } = req.query;
+            if(req.decoded.uid !== uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const productId = req.params.id;
+            const buyerUid = req.params.uid;
+            const updateAllDoc = {
+                $set: {
+                  status: `Canceled`,
+                },
+            };
+            const updateBooking = await bookingsCollection.updateMany({productId}, updateAllDoc);
+            const productItemDoc = {
+                $set: {
+                    status: `booked`,
+                  },
+            }
+            const productUpdate = await productsCollection.updateOne({_id: ObjectId(productId)}, productItemDoc);
+            console.log(buyerUid)
+            const updateApprovedDoc = {
+                $set: {
+                  status: `Accepted`,
+                },
+            };
+            const result = await bookingsCollection.updateOne({productId, buyerUid}, updateApprovedDoc);
+            console.log(result);
+            res.send(result);
         })
         // wishlisting
         const wishlistCollection = database.collection('wishlist');
