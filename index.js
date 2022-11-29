@@ -115,17 +115,16 @@ async function run() {
                 return res.status(403).send({message: 'Unauthorized Access'});
             }
             const productInfo = req.body;
+            productInfo.date = new Date();
             const result = await productsCollection.insertOne(productInfo);
             res.send(result);
-        })
-        app.get('/products', verifyJwt, verifySeller, async (req, res) => {
+        });
+        app.get('/products', async (req, res) => {
             const query = req.query;
-            if(req.decoded.uid !== query.uid) {
-                return res.status(403).send({message: 'Unauthorized Access'});
-            }
-            const cursor = await productsCollection.find(query).toArray();
+            query.status = 'unsold';
+            const cursor = await productsCollection.find(query, {"sort" : [['date', -1]]}).toArray();
             res.send(cursor);
-        })
+        });
         app.delete('/products/:id', verifyJwt, verifySeller, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
@@ -134,14 +133,13 @@ async function run() {
             const id = req.params.id;
             const result = await productsCollection.deleteOne({_id: ObjectId(id)})
             res.send(result);
-        })
+        });
         app.put('/products/:id', verifyJwt, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             }
             const data = req.body;
-            console.log(data);
             const id = req.params.id;
             const filter = {_id: ObjectId(id)};
             const options = { upsert: true };
@@ -153,7 +151,68 @@ async function run() {
             const result = await productsCollection.updateOne(filter, updateDoc, options);
             res.send(result);
         })
-    } finally {}
+        app.get('/productdetails/:id', verifyJwt, async (req, res) => {
+            const query = { _id: ObjectId(req.params.id) };
+            query.status = 'unsold';
+            const result = await productsCollection.findOne(query);
+            res.send(result);
+        })
+        // Bookings
+        const bookingsCollection = database.collection('bookings');
+        app.post('/bookings', verifyJwt, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const bookingInfo = req.body;
+            bookingInfo.date = new Date();
+            const result = await bookingsCollection.insertOne(bookingInfo);
+            res.send(result);
+        })
+        app.delete('/bookings/:id/:uid', verifyJwt, async (req, res) => {
+            const uid = req.params.uid;
+            console.log(req.decoded.uid, uid)
+            if(req.decoded.uid !== uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const bookingQuery = { productId: req.params.id, buyerUid: uid };
+            const result = await bookingsCollection.deleteOne(bookingQuery);
+            res.send(result);
+        })
+        app.get('/isBooked/:id/:uid', verifyJwt, async (req, res) => {
+            const bookingQuery = {productId: req.params.id, buyerUid: req.params.uid};
+            const isBooked = await bookingsCollection.findOne(bookingQuery);
+            res.send({isBooked: isBooked ? true : false})
+        })
+        // wishlisting
+        const wishlistCollection = database.collection('wishlist');
+        app.post('/wishlist', verifyJwt, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const wishlistInfo = req.body;
+            wishlistInfo.date = new Date();
+            const result = await wishlistCollection.insertOne(wishlistInfo);
+            res.send(result);
+        })
+        app.delete('/wishlist/:id/:uid', verifyJwt, async (req, res) => {
+            const uid = req.params.uid;
+            if(req.decoded.uid !== uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const wishlistQuery = { productId: req.params.id, buyerUid: uid };
+            const result = await wishlistCollection.deleteOne(wishlistQuery);
+            res.send(result);
+        })
+        app.get('/isWishlisted/:id/:uid', verifyJwt, async (req, res) => {
+            const wishlistQuery = {productId: req.params.id, buyerUid: req.params.uid};
+            const isWishlisted = await wishlistCollection.findOne(wishlistQuery);
+            res.send({isWishlisted: isWishlisted ? true : false})
+        })
+    } catch(err) {
+        console.log(err.stack)
+    }
 }
 
 run().catch(err => console.log(err))
