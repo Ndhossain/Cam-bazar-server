@@ -2,7 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const jwt =require('jsonwebtoken');
+const stripe = require("stripe")(`sk_test_51M9cuNBAUqblELKM2R0E10tNIMFWDYkEM1GTqUgW7ppvMols9BLx6ahjaMzq7qhjMY8SZnRuM0V0mdhqE18T9EVB00iFWfYviQ`);
 require('dotenv').config();
+
 
 const app = express();
 
@@ -31,6 +33,7 @@ const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology:
 async function run() {
     try {
         const database = client.db('cam-bazar');
+        const bookingsCollection = database.collection('bookings');
         // User Manage
         const userCollection = database.collection('user');
         // admin middleware
@@ -166,7 +169,6 @@ async function run() {
             res.send(result);
         })
         // Bookings
-        const bookingsCollection = database.collection('bookings');
         app.get('/buyer-bookings/:uid', verifyJwt, async (req, res) => {
             const query = req.params.uid;
             if(req.decoded.uid !== query) {
@@ -182,6 +184,14 @@ async function run() {
             };
             const cursor = await bookingsCollection.find({ sellerUid: query }, {"sort" : [['date', -1]]}).toArray();
             res.send(cursor);
+        })
+        app.get('/bookings/:id/:uid', verifyJwt, async (req, res) => {
+            const uid = req.params.uid;
+            if(req.decoded.uid !== uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            }
+            const result = await bookingsCollection.findOne({buyerUid: uid, status: 'Accepted', _id: ObjectId(req.params.id)})
+            res.send(result);
         })
         app.post('/bookings', verifyJwt, async (req, res) => {
             const query = req.query;
@@ -261,6 +271,24 @@ async function run() {
             const wishlistQuery = {productId: req.params.id, buyerUid: req.params.uid};
             const isWishlisted = await wishlistCollection.findOne(wishlistQuery);
             res.send({isWishlisted: isWishlisted ? true : false})
+        })
+        // payment Api
+        app.post('/createpaymentintent', verifyJwt, async (req, res) => {
+            console.log(process.env.STIPE_SECRET_KEY);
+            const booking = req.body;
+            console.log(booking)
+            const price = booking.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount,
+                currency: "usd",
+                "payment_method_types": [
+                    "card"
+                ],
+            });
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
         })
     } catch(err) {
         console.log(err.stack)
