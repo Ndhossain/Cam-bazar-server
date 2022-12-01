@@ -174,7 +174,15 @@ async function run() {
             if(req.decoded.uid !== query) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             };
-            const cursor = await bookingsCollection.find({ buyerUid: query }, {"sort" : [['date', -1]]}).toArray();
+            const cursor = await bookingsCollection.find({ buyerUid: query, $or: [{status: 'Requested'}, {status: 'Accepted'}] }, {"sort" : [['date', -1]]}).toArray();
+            res.send(cursor);
+        })
+        app.get('/bookings-history/:uid', verifyJwt, async (req, res) => {
+            const query = req.params.uid;
+            if(req.decoded.uid !== query) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            };
+            const cursor = await bookingsCollection.find({ buyerUid: query, $or: [{status: 'Canceled'}, {status: 'Paid'}] }, {"sort" : [['date', -1]]}).toArray();
             res.send(cursor);
         })
         app.get('/seller-bookings/:uid', verifyJwt, verifySeller, async (req, res) => {
@@ -273,10 +281,9 @@ async function run() {
             res.send({isWishlisted: isWishlisted ? true : false})
         })
         // payment Api
+        const paymentCollection = database.collection('payments');
         app.post('/createpaymentintent', verifyJwt, async (req, res) => {
-            console.log(process.env.STIPE_SECRET_KEY);
             const booking = req.body;
-            console.log(booking)
             const price = booking.price;
             const amount = price * 100;
             const paymentIntent = await stripe.paymentIntents.create({
@@ -289,6 +296,26 @@ async function run() {
             res.send({
                 clientSecret: paymentIntent.client_secret,
             });
+        })
+        app.post('/payments', verifyJwt, async (req, res) => {
+            const payment = req.body;
+            const paymentResult = await paymentCollection.insertOne(payment);
+            const bookingId = payment.bookingId;
+            const updatedBookingDoc = {
+                $set: {
+                    status: 'Paid',
+                    transactionId: payment.transactionId
+                }
+            }
+            const bookingPaymentStatus = await bookingsCollection.updateOne({_id: ObjectId(bookingId)}, updatedBookingDoc);
+            const productId = payment.productId;
+            const updatedProductDoc = {
+                $set: {
+                    status: 'sold',
+                }
+            }
+            const productStatus = await productsCollection.updateOne({_id: ObjectId(productId)}, updatedProductDoc);
+            res.send(paymentResult);
         })
     } catch(err) {
         console.log(err.stack)
