@@ -34,6 +34,7 @@ async function run() {
     try {
         const database = client.db('cam-bazar');
         const bookingsCollection = database.collection('bookings');
+        const wishlistCollection = database.collection('wishlist');
         // User Manage
         const userCollection = database.collection('user');
         // admin middleware
@@ -68,12 +69,14 @@ async function run() {
             res.send(result);
         })
         app.get('/user/role/:id', verifyJwt, async (req, res) => {
-            const uid = req.params.id;
-            if(req.decoded.uid !== uid) {
+            const currentUserUid = req.query.uid;
+            console.log(currentUserUid);
+            if(req.decoded.uid !== currentUserUid) {
                 return res.status(403).send({message: 'Unauthorized Access'});
             }
+            const uid = req.params.id;
             const result = await userCollection.findOne({uid});
-            res.send({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller'})
+            res.send({isAdmin: result?.role === 'admin', isSeller: result?.role === 'seller', isVerifiedSeller: result?.isVerified === 'Verified'})
         })
         app.get('/user/:role', verifyJwt, verifyAdmin, async (req, res) => {
             const query = req.query;
@@ -91,6 +94,21 @@ async function run() {
             }
             const uid = req.params.id;
             const result = await userCollection.deleteOne({uid});
+            res.send(result);
+        })
+        app.put('/user/verify/:id', verifyJwt, verifyAdmin, async (req, res) => {
+            const query = req.query;
+            if(req.decoded.uid !== query.uid) {
+                return res.status(403).send({message: 'Unauthorized Access'});
+            };
+            const data = req.body;
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    ...data,
+                }
+            }
+            const result = await userCollection.updateOne({uid: req.params.id}, updatedDoc, options);
             res.send(result);
         })
         // jwt
@@ -255,7 +273,6 @@ async function run() {
             res.send(result);
         })
         // wishlisting
-        const wishlistCollection = database.collection('wishlist');
         app.post('/wishlist', verifyJwt, async (req, res) => {
             const query = req.query;
             if(req.decoded.uid !== query.uid) {
@@ -273,6 +290,11 @@ async function run() {
             }
             const wishlistQuery = { productId: req.params.id, buyerUid: uid };
             const result = await wishlistCollection.deleteOne(wishlistQuery);
+            res.send(result);
+        })
+        app.get('/wishlist/:uid', verifyJwt, async (req, res) => {
+            const uid = req.params.uid;
+            const result = await wishlistCollection.find({buyerUid: uid}, {"sort" : [['date', -1]]}).toArray();
             res.send(result);
         })
         app.get('/isWishlisted/:id/:uid', verifyJwt, async (req, res) => {
